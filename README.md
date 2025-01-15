@@ -67,75 +67,121 @@ Make sure to install the following libraries in your Arduino IDE:
 ### 📋 ESP32 Code Example
 
 ```cpp
-#include <Arduino.h>
-#include <HX711.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-// HX711 Pin Configuration
-#define LOADCELL_DOUT_PIN_1 32
-#define LOADCELL_SCK_PIN_1 33
-#define LOADCELL_DOUT_PIN_2 25
-#define LOADCELL_SCK_PIN_2 26
-#define LOADCELL_DOUT_PIN_3 27
-#define LOADCELL_SCK_PIN_3 14
-HX711 scale1;
-HX711 scale2;
-HX711 scale3;
-// BLE Configuration
-#define SERVICE_UUID "12345678-1234-5678-1234-56789abcdef0"
-#define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
-BLECharacteristic pCharacteristic;
+#include <Arduino.h>
+
+// The UUIDs used in your Android app
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+BLEServer* pServer = NULL;
+BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
-// Function to read weight from the sensors
-void readWeights() {
-float weight1 = scale1.get_units(10);
-float weight2 = scale2.get_units(10);
-float weight3 = scale3.get_units(10);
-// Create a string to send over BLE
-String weightData = String(weight1) + "," + String(weight2) + "," + String(weight3);
-// Send the weight data over BLE
-pCharacteristic->setValue(weightData.c_str());
-pCharacteristic->notify();
-}
-class MyServerCallbacks : public BLEServerCallbacks {
-void onConnect(BLEServer pServer) {
-deviceConnected = true;
-}
-void onDisconnect(BLEServer pServer) {
-deviceConnected = false;
-}
+float weightValue = 0.0;
+
+// Debug flag
+bool DEBUG = true;
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      if (DEBUG) Serial.println("Device connected!");
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      if (DEBUG) Serial.println("Device disconnected!");
+      
+      // Restart advertising when disconnected
+      BLEDevice::startAdvertising();
+    }
 };
+
 void setup() {
-Serial.begin(115200);
-// Initialize HX711
-scale1.begin(LOADCELL_DOUT_PIN_1, LOADCELL_SCK_PIN_1);
-scale2.begin(LOADCELL_DOUT_PIN_2, LOADCELL_SCK_PIN_2);
-scale3.begin(LOADCELL_DOUT_PIN_3, LOADCELL_SCK_PIN_3);
-// Set the scale calibration factor (adjust this based on your calibration)
-scale1.set_scale(2280.f);
-scale2.set_scale(2280.f);
-scale3.set_scale(2280.f);
-// Initialize BLE
-BLEDevice::init("WeightSensor");
-pServer->setCallbacks(new MyServerCallbacks());
-BLEService pService = pServer->createService(SERVICE_UUID);
-pCharacteristic = pService->createCharacteristic(
-CHARACTERISTIC_UUID,
-BLECharacteristic::PROPERTY_NOTIFY
-);
-pCharacteristic->addDescriptor(new BLE2902());
-pService->start();
-BLEAdvertising pAdvertising = pServer->getAdvertising();
-pAdvertising->start();
-Serial.println("BLE Ready! Connect to your app.");
+  // Initialize Serial first
+  Serial.begin(115200);
+  delay(1000); // Give serial port time to initialize
+  
+  if (DEBUG) Serial.println("Starting BLE setup...");
+  
+  // Create the BLE Device
+  BLEDevice::init("LPG-WeightSense");
+  if (DEBUG) Serial.println("BLE Device initialized");
+
+  // Create the BLE Server
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+  if (DEBUG) Serial.println("BLE Server created");
+
+  // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  if (DEBUG) Serial.println("BLE Service created");
+
+  // Create BLE Characteristic
+  pCharacteristic = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_NOTIFY
+                    );
+  if (DEBUG) Serial.println("BLE Characteristic created");
+
+  // Create a BLE Descriptor
+  pCharacteristic->addDescriptor(new BLE2902());
+
+  // Start the service
+  pService->start();
+  if (DEBUG) Serial.println("BLE Service started");
+
+  // Start advertising
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(false);
+  pAdvertising->setMinPreferred(0x0);
+  BLEDevice::startAdvertising();
+  
+  if (DEBUG) Serial.println("Setup complete! Waiting for connections...");
 }
 void loop() {
-if (deviceConnected) {
-readWeights();
-delay(1000); // Send data every second
+  if (deviceConnected) {
+    // Simulate weight sensor reading (replace with actual sensor code)
+    weightValue = random(0, 1000) / 10.0; // Random value between 0.0 and 100.0
+    
+    // Convert float to bytes with explicit endianness
+    uint8_t bytes[4];
+    float32_to_bytes(weightValue, bytes);
+    
+    // Update characteristic value
+    pCharacteristic->setValue(bytes, 4);
+    pCharacteristic->notify();
+    
+    if (DEBUG) {
+      Serial.print("Weight value sent: ");
+      Serial.println(weightValue); 
+    }
+    
+    delay(10000); // Update every ten seconds
+  }
+  
+  // Add a small delay to prevent watchdog timer issues
+  delay(20);
 }
+
+// Helper function to convert float to bytes (Little Endian)
+void float32_to_bytes(float value, uint8_t *bytes) {
+    union {
+        float float_value;
+        uint8_t byte_value[4];
+    } converter;
+    
+    converter.float_value = value;
+    
+    // Copy bytes in little-endian order
+    for (int i = 0; i < 4; i++) {
+        bytes[i] = converter.byte_value[i];
+    }
 }
 ```
 ### ⚙️ Wiring Diagram
