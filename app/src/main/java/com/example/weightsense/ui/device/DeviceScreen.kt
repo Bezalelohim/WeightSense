@@ -51,11 +51,21 @@ fun DevicesContent(
 ) {
     val devices by viewModel.devices.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+    val connectedAddress by viewModel.connectedDeviceAddress.collectAsState()
+    val isDeviceConnected by viewModel.isDeviceConnected.collectAsState()
 
-    LaunchedEffect(devices) {
-        Log.d("DevicesScreen", "UI updated with ${devices.size} devices")
-        devices.forEach { device ->
-            Log.d("DevicesScreen", "Device: ${device.address}")
+    // Sort devices to show connected device first
+    val sortedDevices = remember(devices, connectedAddress, isDeviceConnected) {
+        devices.sortedWith(compareBy { device ->
+            // Connected device goes first (false), others second (true)
+            !(device.address == connectedAddress && isDeviceConnected)
+        })
+    }
+
+    LaunchedEffect(sortedDevices) {
+        Log.d("DevicesScreen", "UI updated with ${sortedDevices.size} devices")
+        sortedDevices.forEach { device ->
+            Log.d("DevicesScreen", "Device: ${device.address}, Connected: ${device.address == connectedAddress}")
         }
     }
 
@@ -63,7 +73,6 @@ fun DevicesContent(
         Text(
             text = stringResource(R.string.scan_for_devices),
             style = MaterialTheme.typography.headlineSmall,
-            
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(16.dp)
         )
@@ -74,7 +83,23 @@ fun DevicesContent(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(devices) { device ->
+            // Add a header for connected device if one exists
+            if (isDeviceConnected && connectedAddress != null) {
+                item {
+                    Text(
+                        text = stringResource(R.string.connected_device),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Show sorted devices
+            items(
+                items = sortedDevices,
+                key = { device -> device.address }
+            ) { device ->
                 DeviceItem(
                     device = device,
                     onConnectClick = { viewModel.connectToDevice(device) }
@@ -117,7 +142,8 @@ fun DeviceItem(
     viewModel: DevicesViewModel = hiltViewModel()
 ) {
     val connectedAddress by viewModel.connectedDeviceAddress.collectAsState()
-    val isConnected = device.address == connectedAddress
+    val isDeviceConnected by viewModel.isDeviceConnected.collectAsState()
+    val isConnected = device.address == connectedAddress && isDeviceConnected
     val context = LocalContext.current
     val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
@@ -129,7 +155,15 @@ fun DeviceItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp, horizontal = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isConnected) 4.dp else 2.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isConnected) 
+                MaterialTheme.colorScheme.primaryContainer 
+            else 
+                MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier

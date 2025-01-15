@@ -20,8 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import java.util.UUID
-import java.time.Instant
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.util.Log
@@ -51,26 +49,21 @@ class DevicesViewModel @Inject constructor(
     private val _connectedDeviceAddress = MutableStateFlow<String?>(null)
     val connectedDeviceAddress: StateFlow<String?> = _connectedDeviceAddress.asStateFlow()
 
+    // Add persistent connection state
+    private val _isDeviceConnected = MutableStateFlow(false)
+    val isDeviceConnected: StateFlow<Boolean> = _isDeviceConnected.asStateFlow()
+
     init {
         viewModelScope.launch {
-            bleManager.scannedDevices
-                .collect { scannedDevices ->
-                    Log.d("DevicesViewModel", "Received ${scannedDevices.size} devices from BleManager")
-                    scannedDevices.forEach { device ->
-                        Log.d("DevicesViewModel", "Device: ${device.address}, name: ${device.name}")
-                    }
-                    val devicesList = scannedDevices.toMutableList()
-                    currentConnectedDevice?.let { connectedDevice ->
-                        if (!devicesList.any { it.address == connectedDevice.address }) {
-                            devicesList.add(connectedDevice)
-                        }
-                    }
-                    _devices.value = devicesList
-                }
+            bleManager.scannedDevices.collect { scannedDevices ->
+                Log.d("DevicesViewModel", "Received ${scannedDevices.size} devices from BleManager")
+                _devices.value = scannedDevices
+            }
         }
         viewModelScope.launch {
             bleManager.weightData.collect { weight ->
                 _weightData.value = weight
+                Log.d("DevicesViewModel", "Weight data updated in ViewModel: $weight")
             }
         }
         viewModelScope.launch {
@@ -80,9 +73,14 @@ class DevicesViewModel @Inject constructor(
         }
         viewModelScope.launch {
             bleManager.isConnected.collect { isConnected ->
-                currentConnectedDevice?.let { device ->
-                    updateConnectionState(device.address, isConnected)
-                }
+                _isDeviceConnected.value = isConnected
+                Log.d("DevicesViewModel", "Connection state updated: $isConnected")
+            }
+        }
+        viewModelScope.launch {
+            bleManager.connectedDeviceAddress.collect { address ->
+                _connectedDeviceAddress.value = address
+                Log.d("DevicesViewModel", "Connected device address updated: $address")
             }
         }
     }
@@ -90,10 +88,10 @@ class DevicesViewModel @Inject constructor(
     fun connectToDevice(device: BluetoothDevice) {
         viewModelScope.launch {
             try {
-                bleManager.connect(device)
+                Log.d("DevicesViewModel", "Attempting to connect to device: ${device.address}")
                 currentConnectedDevice = device
+                bleManager.connect(device)
                 updateConnectionState(device.address, true)
-                bleDeviceRepository.updateDeviceStatus(device.address, BleDeviceStatus.CONNECTED)
             } catch (e: Exception) {
                 Log.e("DevicesViewModel", "Connection error: ${e.message}")
                 updateConnectionState(device.address, false)
@@ -119,7 +117,6 @@ class DevicesViewModel @Inject constructor(
     private fun handleConnectionError(device: BluetoothDevice, error: Exception) {
         viewModelScope.launch {
             bleDeviceRepository.updateDeviceStatus(device.address, BleDeviceStatus.DISCONNECTED)
-            // You might want to show an error message to the user here
             error.printStackTrace()
         }
     }
@@ -197,6 +194,13 @@ class DevicesViewModel @Inject constructor(
 
     // Update this when connection state changes
     private fun updateConnectionState(deviceAddress: String, isConnected: Boolean) {
+        Log.d("DevicesViewModel", "Updating connection state: $isConnected for device: $deviceAddress")
         _connectedDeviceAddress.value = if (isConnected) deviceAddress else null
+        viewModelScope.launch {
+            bleDeviceRepository.updateDeviceStatus(
+                deviceAddress,
+                if (isConnected) BleDeviceStatus.CONNECTED else BleDeviceStatus.DISCONNECTED
+            )
+        }
     }
 }

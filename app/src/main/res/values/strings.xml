@@ -6,6 +6,8 @@
     <string name="weight_format">%.2f kg</string>
     <string name="last_synced">Last synced: %s</string>
     <string name="refresh_weight">Refresh Weight</string>
+    <string name="device_connected">Device Connected</string>
+    <string name="device_disconnected">Device Disconnected</string>
     
     <!-- Devices Screen -->
     <string name="scan_for_devices">Scan for Devices</string>
@@ -14,12 +16,13 @@
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="bluetooth_permission_required">Bluetooth permission is required for this feature.</string>
+    <string name="connected_device">Connected Device</string>
     
     <!-- Settings Screen -->
     <string name="settings">Settings</string>
     <string name="username">Username</string>
     <string name="profile">Profile</string>
-    <string name="max_weight">Maximum Weight</string>
+    <string name="max_weight">Max Weight</string>
     <string name="weight_unit">Weight Unit</string>
     <string name="theme">Theme</string>
     <string name="notifications">Notifications</string>
