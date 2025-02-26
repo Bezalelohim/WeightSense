@@ -247,8 +247,10 @@ class BleManager @Inject constructor(
                 val value = characteristic.value
                 if (value != null && value.size == 4) {
                     val weightValue = bytesToFloat(value)
-                    Log.d("BleManager", "Received weight value: %.2f".format(weightValue))
-                    updateWeightData(weightValue)
+                    // Ensure weight value is not negative
+                    val validWeight = weightValue.coerceAtLeast(0f)
+                    Log.d("BleManager", "Received weight value: %.2f".format(validWeight))
+                    updateWeightData(validWeight)
                 }
             }
         }
@@ -263,8 +265,10 @@ class BleManager @Inject constructor(
                     val value = characteristic.value
                     if (value != null && value.size == 4) {
                         val weightValue = bytesToFloat(value)
-                        Log.d("BleManager", "Read weight value: %.2f".format(weightValue))
-                        updateWeightData(weightValue)
+                        // Ensure weight value is not negative
+                        val validWeight = weightValue.coerceAtLeast(0f)
+                        Log.d("BleManager", "Read weight value: %.2f".format(validWeight))
+                        updateWeightData(validWeight)
                     }
                 }
             }

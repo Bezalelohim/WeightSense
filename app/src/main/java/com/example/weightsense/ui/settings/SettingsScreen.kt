@@ -11,6 +11,8 @@ import com.example.weightsense.ui.navigation.BottomNavigationBar
 import androidx.compose.ui.res.stringResource
 import com.example.weightsense.R
 import java.util.Locale
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun SettingsScreen(
@@ -23,9 +25,6 @@ fun SettingsScreen(
 
     val unitKg = stringResource(R.string.unit_kg)
     val unitLbs = stringResource(R.string.unit_lbs)
-    val themeSystem = stringResource(R.string.theme_system)
-    val themeLight = stringResource(R.string.theme_light)
-    val themeDark = stringResource(R.string.theme_dark)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -40,85 +39,114 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleLarge
             )
 
-            OutlinedTextField(
-                value = uiState.username,
-                onValueChange = { viewModel.updateUsername(it) },
-                label = { Text(stringResource(R.string.username)) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = uiState.currentProfile,
-                onValueChange = { viewModel.updateCurrentProfile(it) },
-                label = { Text(stringResource(R.string.profile)) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = uiState.maxWeight.toString(),
-                onValueChange = { 
-                    it.toFloatOrNull()?.let { weight ->
-                        viewModel.updateMaxWeight(weight)
-                    }
-                },
-                label = { Text(stringResource(R.string.max_weight)) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Weight Unit Selector
-            Row(
+            // Cylinder Weight Settings Section
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.weight_unit))
-                Spacer(modifier = Modifier.width(16.dp))
-                RadioButton(
-                    selected = uiState.weightUnit == unitKg,
-                    onClick = { viewModel.updateWeightUnit(unitKg) }
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
-                Text(unitKg)
-                Spacer(modifier = Modifier.width(16.dp))
-                RadioButton(
-                    selected = uiState.weightUnit == unitLbs,
-                    onClick = { viewModel.updateWeightUnit(unitLbs) }
-                )
-                Text(unitLbs)
-            }
-
-            // Theme Selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(R.string.theme))
-                Spacer(modifier = Modifier.width(16.dp))
-                DropdownMenu(
-                    expanded = false,
-                    onDismissRequest = { }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    listOf(themeSystem, themeLight, themeDark).forEach { theme ->
-                        DropdownMenuItem(
-                            text = { Text(theme) },
-                            onClick = { viewModel.updateTheme(theme) }
+                    Text(
+                        text = stringResource(R.string.cylinder_weights),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    
+                    // Gross Cylinder Weight (Full cylinder with gas)
+                    OutlinedTextField(
+                        value = uiState.fullCylinderWeight.toString(),
+                        onValueChange = { 
+                            it.toFloatOrNull()?.let { weight ->
+                                viewModel.updateFullCylinderWeight(weight)
+                            }
+                        },
+                        label = { Text(stringResource(R.string.gross_cylinder_weight)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+
+                    // Pure Gas Weight
+                    OutlinedTextField(
+                        value = uiState.netWeight.toString(),
+                        onValueChange = { 
+                            it.toFloatOrNull()?.let { weight ->
+                                viewModel.updateNetWeight(weight)
+                            }
+                        },
+                        label = { Text(stringResource(R.string.pure_gas_weight)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+
+                    // Display calculated tare weight (empty cylinder weight)
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
                         )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.tare_weight_label),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.tare_weight_display,
+                                    "%.1f".format(uiState.fullCylinderWeight - uiState.netWeight)
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
                     }
                 }
             }
 
-            // Notifications Toggle
-            Row(
+            // Weight Unit Selector
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.notifications))
-                Spacer(modifier = Modifier.width(16.dp))
-                Switch(
-                    checked = uiState.notificationsEnabled,
-                    onCheckedChange = { viewModel.toggleNotifications() }
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.weight_unit))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    RadioButton(
+                        selected = uiState.weightUnit == unitKg,
+                        onClick = { viewModel.updateWeightUnit(unitKg) }
+                    )
+                    Text(unitKg)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    RadioButton(
+                        selected = uiState.weightUnit == unitLbs,
+                        onClick = { viewModel.updateWeightUnit(unitLbs) }
+                    )
+                    Text(unitLbs)
+                }
             }
             
-            Button(onClick = { viewModel.saveSettings() }) {
+            Button(
+                onClick = { viewModel.saveSettings() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(stringResource(R.string.save_settings))
             }
         }

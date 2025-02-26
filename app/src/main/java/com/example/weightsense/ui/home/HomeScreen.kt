@@ -25,7 +25,6 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val weightState by viewModel.weightState.collectAsState()
-    val lastSyncTime by viewModel.lastSyncTime.collectAsState()
     val isConnected by viewModel.isDeviceConnected.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -43,27 +42,34 @@ fun HomeScreen(
                 style = MaterialTheme.typography.titleLarge
             )
             
-            val weightLevel = (weightState.currentWeight / weightState.maxWeight)
-                .coerceIn(0f, 1f)
+            // Calculate tare weight (empty cylinder weight)
+            val tareWeight = weightState.fullCylinderWeight - weightState.netWeight
+            
+            // Calculate current gas weight by subtracting tare weight from sensor reading
+            // First ensure the sensor reading is valid (not negative)
+            val validSensorReading = weightState.cylinderWeight.coerceAtLeast(0f)
+            val currentGasWeight = (validSensorReading - tareWeight).coerceAtLeast(0f)
+            
+            // Calculate level based on current gas weight relative to maximum gas capacity
+            val level = if (weightState.netWeight > 0f) {
+                // Ensure we're not dividing by zero and result is between 0 and 1
+                (currentGasWeight / weightState.netWeight).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
             
             WeightIndicator(
-                level = weightLevel,
-                currentWeight = weightState.currentWeight,
-                maxWeight = weightState.maxWeight,
+                level = level,
+                netWeight = currentGasWeight,
+                maxCapacity = weightState.netWeight.coerceAtLeast(0.1f), // Prevent division by zero
                 modifier = Modifier.size(200.dp)
             )
             
             WeightDisplay(
-                currentWeight = weightState.currentWeight,
+                netWeight = currentGasWeight,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp)
-            )
-            
-            WeightInfoCard(
-                maxWeight = weightState.maxWeight,
-                lastSyncTime = lastSyncTime,
-                modifier = Modifier.fillMaxWidth()
             )
             
             Button(
@@ -111,7 +117,7 @@ private fun ConnectionStatus(isConnected: Boolean) {
 }
 
 @Composable
-private fun WeightDisplay(currentWeight: Float, modifier: Modifier = Modifier) {
+private fun WeightDisplay(netWeight: Float, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
@@ -123,7 +129,7 @@ private fun WeightDisplay(currentWeight: Float, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "%.1f".format(currentWeight),
+                text = "%.1f".format(netWeight),
                 style = MaterialTheme.typography.displayMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -137,37 +143,10 @@ private fun WeightDisplay(currentWeight: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun WeightInfoCard(maxWeight: Float, lastSyncTime: Long, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "${stringResource(R.string.max_weight)}: $maxWeight${stringResource(R.string.unit_kg)}",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.last_synced, formatLastSyncTime(lastSyncTime)),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 private fun WeightIndicator(
     level: Float,
-    currentWeight: Float,
-    maxWeight: Float,
+    netWeight: Float,
+    maxCapacity: Float,
     modifier: Modifier = Modifier
 ) {
     // Get colors outside of Canvas
