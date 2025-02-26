@@ -72,10 +72,18 @@ Make sure to install the following libraries in your Arduino IDE:
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <Arduino.h>
+#include "HX711.h"
 
-// The UUIDs used in your Android app
+#define calibration_factor -7050.0  // Obtained using the SparkFun_HX711_Calibration sketch
+
+#define LOADCELL_DOUT_PIN  21
+#define LOADCELL_SCK_PIN   22
+
+// BLE UUIDs used in your Android app
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+HX711 scale;
 
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
@@ -85,33 +93,40 @@ float weightValue = 0.0;
 // Debug flag
 bool DEBUG = true;
 
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      if (DEBUG) Serial.println("Device connected!");
-    };
+// Forward declaration of helper function
+void float32_to_bytes(float value, uint8_t *bytes);
 
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      if (DEBUG) Serial.println("Device disconnected!");
-      
-      // Restart advertising when disconnected
-      BLEDevice::startAdvertising();
-    }
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) override {
+    deviceConnected = true;
+    if (DEBUG) Serial.println("Device connected!");
+  };
+
+  void onDisconnect(BLEServer* pServer) override {
+    deviceConnected = false;
+    if (DEBUG) Serial.println("Device disconnected!");
+    // Restart advertising when disconnected
+    BLEDevice::startAdvertising();
+  }
 };
 
 void setup() {
-  // Initialize Serial first
   Serial.begin(115200);
-  delay(1000); // Give serial port time to initialize
-  
+  delay(1000); // Allow time for serial port initialization
+
+  // Initialize the scale
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(calibration_factor);
+  scale.tare(); // Reset the scale to 0
+
+  Serial.println("Readings:");
   if (DEBUG) Serial.println("Starting BLE setup...");
-  
-  // Create the BLE Device
+
+  // Initialize BLE
   BLEDevice::init("LPG-WeightSense");
   if (DEBUG) Serial.println("BLE Device initialized");
 
-  // Create the BLE Server
+  // Create the BLE Server and set callbacks
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
   if (DEBUG) Serial.println("BLE Server created");
@@ -120,7 +135,7 @@ void setup() {
   BLEService *pService = pServer->createService(SERVICE_UUID);
   if (DEBUG) Serial.println("BLE Service created");
 
-  // Create BLE Characteristic
+  // Create BLE Characteristic with READ and NOTIFY properties
   pCharacteristic = pService->createCharacteristic(
                       CHARACTERISTIC_UUID,
                       BLECharacteristic::PROPERTY_READ   |
@@ -128,61 +143,71 @@ void setup() {
                     );
   if (DEBUG) Serial.println("BLE Characteristic created");
 
-  // Create a BLE Descriptor
+  // Add descriptor to the characteristic
   pCharacteristic->addDescriptor(new BLE2902());
 
   // Start the service
   pService->start();
   if (DEBUG) Serial.println("BLE Service started");
 
-  // Start advertising
+  // Set up advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x0);
   BLEDevice::startAdvertising();
-  
+
   if (DEBUG) Serial.println("Setup complete! Waiting for connections...");
 }
+
 void loop() {
   if (deviceConnected) {
-    // Simulate weight sensor reading (replace with actual sensor code)
-    weightValue = random(0, 1000) / 10.0; // Random value between 0.0 and 100.0
+    // Read the sensor value once and store it
+    weightValue = scale.get_units();
     
-    // Convert float to bytes with explicit endianness
+    if (weightValue < 0) {
+            weightValue = 0;
+        }
+
+    Serial.print("Readings: ");
+    Serial.println(weightValue, 1);
+
+    // Convert float to bytes (little-endian)
     uint8_t bytes[4];
     float32_to_bytes(weightValue, bytes);
-    
-    // Update characteristic value
+
+    // Update the BLE characteristic and notify the client
     pCharacteristic->setValue(bytes, 4);
     pCharacteristic->notify();
-    
+
     if (DEBUG) {
       Serial.print("Weight value sent: ");
-      Serial.println(weightValue); 
+      Serial.println(weightValue);
     }
     
-    delay(10000); // Update every ten seconds
+    // Update every ten seconds
+    delay(2000);
   }
   
-  // Add a small delay to prevent watchdog timer issues
+  // Small delay to prevent watchdog issues
   delay(20);
 }
 
-// Helper function to convert float to bytes (Little Endian)
+// Helper function to convert a float to a byte array (Little Endian)
 void float32_to_bytes(float value, uint8_t *bytes) {
-    union {
-        float float_value;
-        uint8_t byte_value[4];
-    } converter;
-    
-    converter.float_value = value;
-    
-    // Copy bytes in little-endian order
-    for (int i = 0; i < 4; i++) {
-        bytes[i] = converter.byte_value[i];
-    }
+  union {
+    float float_value;
+    uint8_t byte_value[4];
+  } converter;
+  
+  converter.float_value = value;
+  
+  // Copy bytes in little-endian order
+  for (int i = 0; i < 4; i++) {
+    bytes[i] = converter.byte_value[i];
+  }
 }
+
 ```
 ### ⚙️ Wiring Diagram
 
