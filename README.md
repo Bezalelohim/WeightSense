@@ -44,6 +44,9 @@ A modern Android application for monitoring weight measurements using Bluetooth 
 - Location (for Android < 12)
 - Bluetooth Admin (for older Android versions)
 
+![Alt text](demo-1.mp4)
+![Alt text](demo-2.mp4)
+
 
 -------------------------------------------------------------------------------------------------------------------------------
 ## 📡 ESP32 Weight Sensor Implementation
