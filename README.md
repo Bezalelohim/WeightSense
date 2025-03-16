@@ -44,8 +44,13 @@ A modern Android application for monitoring weight measurements using Bluetooth 
 - Location (for Android < 12)
 - Bluetooth Admin (for older Android versions)
 
+## 📱 Screen UI
+
 ![Alt text](screenui/home.jpeg)
-![Alt text](screenui/settings/jpeg)
+:
+![Alt text](screenui/settings.jpeg)
+:
+![Alt text](screenui/scan.jpeg)
 
 
 -------------------------------------------------------------------------------------------------------------------------------
